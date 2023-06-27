@@ -1,20 +1,40 @@
 //
+// Created by student on 6/27/23.
+//
+//
 // Created by student on 6/26/23.
 //
 #include <unistd.h>
 #include <stdio.h>
 #include <iostream>
 #include <cstring>
+#define MINSIZEOFBLOCK 128
+#define MAXSIZEOFBLOCK 128*1024 //128KB
 
 struct MallocMetaDatta{
     size_t size;
     bool is_free;
-    MallocMetaDatta* next;
-    MallocMetaDatta* prev;
+    MallocMetaDatta* next_block;
+    MallocMetaDatta* prev_block;
+    MallocMetaDatta* next_inner_block;
+    MallocMetaDatta* prev_inner_block;
+    size_t number_of_nodes = 1; //maybe
 };
 
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
+
+size_t get_num_of_nodes(size_t size){ //size in bytes
+    int nodes =1;
+    int min_needed_blocks = MAXSIZEOFBLOCK;//(bytes)
+    //int byte_size = size/1024;
+    while(size < min_needed_blocks/2 && min_needed_blocks>= MINSIZEOFBLOCK){
+        min_needed_blocks = min_needed_blocks/2;
+        nodes*=2;
+    }
+    return nodes; //nodes is the number of nodes needed for the allocation
+}
+
 #1
 void* smalloc(size_t size){
     if(size < 0 || size > 100000000){
@@ -157,11 +177,3 @@ size_t _num_meta_data_bytes(){
 size_t _size_meta_data(){
     return sizeof(MallocMetaDatta);
 }
-
-
-
-
-
-
-
-
