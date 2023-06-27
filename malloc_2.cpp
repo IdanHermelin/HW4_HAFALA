@@ -15,7 +15,7 @@ struct MallocMetaDatta{
 
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
-
+#1
 void* smalloc(size_t size){
     if(size < 0 || size > 100000000){
         return nullptr;
@@ -47,7 +47,7 @@ void* smalloc(size_t size){
     }
     return (void*)((long)newAllocate+sizeof(MallocMetaDatta));
 }
-
+#2
 void* scalloc(size_t num, size_t size){
     if(size == 0 || num == 0){
         return nullptr;
@@ -59,7 +59,7 @@ void* scalloc(size_t num, size_t size){
     }
     return nullptr;
 }
-
+#3
 void sfree(void* p){
     if(p == nullptr){
         return;
@@ -76,6 +76,7 @@ void sfree(void* p){
         tmp = tmp->next;
     }
 }
+#4
 void* srealloc(void* oldp, size_t size){
     if(size == 0 || size > 100000000){
         return nullptr;
@@ -104,7 +105,58 @@ void* srealloc(void* oldp, size_t size){
     return newAllocation;
 }
 
-
+#5
+size_t _num_free_blocks(){
+    MallocMetaDatta* tmp = metaData_first;
+    size_t counter=0;
+    while(tmp != nullptr){
+        if(tmp->is_free){
+            counter++;
+        }
+        tmp = tmp->next;
+    }
+    return counter;
+}
+#6
+size_t _num_free_bytes(){
+    MallocMetaDatta* tmp = metaData_first;
+    size_t counter=0;
+    while(tmp != nullptr){
+        if(tmp->is_free){
+            counter+= tmp->size;
+        }
+        tmp = tmp->next;
+    }
+    return counter;
+}
+#7
+size_t _num_allocated_blocks(){
+    MallocMetaDatta* tmp = metaData_first;
+    size_t counter=0;
+    while(tmp != nullptr){
+        counter++;
+        tmp = tmp->next;
+    }
+    return counter;
+}
+#8
+size_t _num_allocated_bytes() {
+    MallocMetaDatta *tmp = metaData_first;
+    size_t counter = 0;
+    while (tmp != nullptr) {
+        counter += tmp->size;
+        tmp = tmp->next;
+    }
+    return counter;
+}
+#9
+size_t _num_meta_data_bytes(){
+    return sizeof(MallocMetaDatta)* _num_allocated_blocks();
+}
+#10
+size_t _size_meta_data(){
+    return sizeof(MallocMetaDatta);
+}
 
 
 
