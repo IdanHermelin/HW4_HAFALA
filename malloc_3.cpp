@@ -10,29 +10,52 @@
 #include <cstring>
 #define MINSIZEOFBLOCK 128
 #define MAXSIZEOFBLOCK 128*1024 //128KB
+#define ORDERS 10
 
 struct MallocMetaDatta{
     size_t size;
     bool is_free;
-    MallocMetaDatta* next_block;
-    MallocMetaDatta* prev_block;
     MallocMetaDatta* next_inner_block;
     MallocMetaDatta* prev_inner_block;
     size_t number_of_nodes = 1; //maybe
 };
 
+struct ListedMalloc{
+    size_t num_of_blocks;
+    size_t size_of_blocks;
+    MallocMetaDatta* first = nullptr;
+    MallocMetaDatta* last = nullptr;
+    ListedMalloc* next_order;
+    ListedMalloc* prev_order;
+    size_t number_of_nodes = 0; //maybe
+};
+
+ListedMalloc * ListedArray[ORDERS];
+
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
 
-size_t get_num_of_nodes(size_t size){ //size in bytes
-    int nodes =1;
+size_t get_order(size_t size){ //size in bytes
+    int order = ORDERS;
     int min_needed_blocks = MAXSIZEOFBLOCK;//(bytes)
     //int byte_size = size/1024;
     while(size < min_needed_blocks/2 && min_needed_blocks>= MINSIZEOFBLOCK){
         min_needed_blocks = min_needed_blocks/2;
-        nodes*=2;
+        order--;
     }
-    return nodes; //nodes is the number of nodes needed for the allocation
+    return order; //order is the number of cell in the array we will add the memory
+}
+bool is_array_initialized = false;
+void init_array(){
+    if(!is_array_initialized){
+        int cur_size = MINSIZEOFBLOCK;
+        for(int i=0;i<ORDERS;i++){
+            ListedArray[i] = (ListedMalloc* ) malloc(sizeof(ListedMalloc));
+            ListedArray[i]->size_of_blocks = cur_size;
+            cur_size*=2;
+        }
+    }
+    is_array_initialized = true;
 }
 
 #1
@@ -40,32 +63,33 @@ void* smalloc(size_t size){
     if(size < 0 || size > 100000000){
         return nullptr;
     }
-    MallocMetaDatta* tmp = metaData_first;
-    while(tmp != nullptr){
-        if(tmp->size >= size && tmp->is_free == true){
-            return tmp;
+    int cur_order = ORDERS-1;
+    init_array();
+    bool block_found = false;
+    int to_add_order = get_order(size + sizeof (MallocMetaDatta));
+    if(cur_order == to_add_order){ //order is 9
+        if (ListedArray[cur_order]->first = nullptr){
+            ListedArray[cur_order]->first = (MallocMetaDatta*) malloc(ListedArray[cur_order]->size_of_blocks);
+            ListedArray[cur_order]->first->is_free = false;
         }
-        tmp = tmp->next;
+        else{
+            MallocMetaDatta* tmp = ListedArray[cur_order]->first;
+            while(!tmp->is_free){
+                tmp = tmp->next_inner_block;
+            }
+            //add to this place and update all the fields in the list
+        }
     }
-    void* checkAllocate = sbrk(sizeof(MallocMetaDatta) + size);
-    if(checkAllocate == (void*)-1){
-        return NULL;
+    //create all the internal 2 parts for each time you go down in the array
+    while(cur_order > to_add_order && !block_found){
+
+        cur_order--;
     }
-    auto* newAllocate = static_cast<MallocMetaDatta*>(checkAllocate);
-    newAllocate->size = size;
-    newAllocate->is_free = false;
-    newAllocate->next = nullptr;
-    if(metaData_first == nullptr){
-        newAllocate->prev = nullptr;
-        metaData_first = newAllocate;
-        mettaData_last = newAllocate;
-    }
-    else{
-        mettaData_last->next = newAllocate;
-        newAllocate->prev = mettaData_last;
-        mettaData_last = mettaData_last->next;
-    }
-    return (void*)((long)newAllocate+sizeof(MallocMetaDatta));
+    //the right order
+
+
+
+
 }
 #2
 void* scalloc(size_t num, size_t size){
