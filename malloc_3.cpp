@@ -13,13 +13,15 @@
 #define ORDERS 10
 
 struct MallocMetaDatta{
+    int relative_address;
     size_t size;
-    bool is_free;
-    MallocMetaDatta* next_inner_block;
-    MallocMetaDatta* prev_inner_block;
-    size_t number_of_nodes = 1; //maybe
+    bool is_free = true;
+    MallocMetaDatta* next_baddy_block;
+    MallocMetaDatta* prev_baddy_block;
+    MallocMetaDatta* parent;
+    MallocMetaDatta* son;
 };
-
+/*
 struct ListedMalloc{
     size_t num_of_blocks;
     size_t size_of_blocks;
@@ -29,8 +31,8 @@ struct ListedMalloc{
     ListedMalloc* prev_order;
     size_t number_of_nodes = 0; //maybe
 };
-
-ListedMalloc * ListedArray[ORDERS];
+*/
+//ListedMalloc * ListedArray[ORDERS];
 
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
@@ -38,24 +40,35 @@ MallocMetaDatta* mettaData_last = nullptr;
 size_t get_order(size_t size){ //size in bytes
     int order = ORDERS;
     int min_needed_blocks = MAXSIZEOFBLOCK;//(bytes)
-    //int byte_size = size/1024;
     while(size < min_needed_blocks/2 && min_needed_blocks>= MINSIZEOFBLOCK){
         min_needed_blocks = min_needed_blocks/2;
         order--;
     }
     return order; //order is the number of cell in the array we will add the memory
 }
-bool is_array_initialized = false;
-void init_array(){
-    if(!is_array_initialized){
-        int cur_size = MINSIZEOFBLOCK;
-        for(int i=0;i<ORDERS;i++){
-            ListedArray[i] = (ListedMalloc* ) malloc(sizeof(ListedMalloc));
-            ListedArray[i]->size_of_blocks = cur_size;
-            cur_size*=2;
+bool is_list_initialized = false;
+void init_list(){
+    int address = 0;
+    if(!is_list_initialized){
+        for(int i=0;i<32;i++){
+            MallocMetaDatta* node = (MallocMetaDatta*) malloc(sizeof(MAXSIZEOFBLOCK));
+            node->next_baddy_block = nullptr;
+            node->prev_baddy_block = nullptr;
+            node->parent = nullptr;
+            node->son = nullptr;
+            node->relative_address = address;
+            //node->size = MAXSIZEOFBLOCK - sizeof(MallocMetaDatta);
+            node->size = MAXSIZEOFBLOCK;
+            if(i==0){
+                metaData_first = node;
+            }
+            if(i==31){
+                mettaData_last == node;
+            }
+            address+=MAXSIZEOFBLOCK;
         }
     }
-    is_array_initialized = true;
+    is_list_initialized = true;
 }
 
 #1
@@ -64,32 +77,32 @@ void* smalloc(size_t size){
         return nullptr;
     }
     int cur_order = ORDERS-1;
-    init_array();
+    init_list();
     bool block_found = false;
-    int to_add_order = get_order(size + sizeof (MallocMetaDatta));
-    if(cur_order == to_add_order){ //order is 9
-        if (ListedArray[cur_order]->first = nullptr){
-            ListedArray[cur_order]->first = (MallocMetaDatta*) malloc(ListedArray[cur_order]->size_of_blocks);
-            ListedArray[cur_order]->first->is_free = false;
+    int order = get_order(size + sizeof(MallocMetaDatta));
+    MallocMetaDatta* cur_parent = metaData_first;
+    MallocMetaDatta* cur_son;
+    if(order == ORDERS-1){
+
+    }
+
+    while(cur_order > order && !block_found){
+        if(cur_parent->son){
+            cur_son = cur_parent->son;
         }
         else{
-            MallocMetaDatta* tmp = ListedArray[cur_order]->first;
-            while(!tmp->is_free){
-                tmp = tmp->next_inner_block;
-            }
-            //add to this place and update all the fields in the list
+            MallocMetaDatta* new_son;
+            MallocMetaDatta* new_buddy_son;
+            cur_parent->son = new_son;
+            new_son->size = cur_parent->size/2;
+            new_son->parent = cur_parent;
+            new_son->next_baddy_block = new_buddy_son;
+            new_son->relative_address = cur_parent->relative_address;
+            new_buddy_son->relative_address = cur_parent->relative_address + cur_parent->size/2;
+            //continue adding fields
         }
-    }
-    //create all the internal 2 parts for each time you go down in the array
-    while(cur_order > to_add_order && !block_found){
-
         cur_order--;
     }
-    //the right order
-
-
-
-
 }
 #2
 void* scalloc(size_t num, size_t size){
