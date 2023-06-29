@@ -13,13 +13,11 @@
 #define ORDERS 10
 
 struct MallocMetaDatta{
-    int relative_address;
+    void* address;
     size_t size;
     bool is_free = true;
-    MallocMetaDatta* next_baddy_block;
-    MallocMetaDatta* prev_baddy_block;
-    MallocMetaDatta* parent;
-    MallocMetaDatta* son;
+    MallocMetaDatta* next;
+    MallocMetaDatta* prev;
 };
 /*
 struct ListedMalloc{
@@ -32,10 +30,11 @@ struct ListedMalloc{
     size_t number_of_nodes = 0; //maybe
 };
 */
-//ListedMalloc * ListedArray[ORDERS];
 
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
+
+MallocMetaDatta* OrdersArray[ORDERS+1]; //Cells of 0-10
 
 size_t get_order(size_t size){ //size in bytes
     int order = ORDERS;
@@ -47,25 +46,50 @@ size_t get_order(size_t size){ //size in bytes
     return order; //order is the number of cell in the array we will add the memory
 }
 bool is_list_initialized = false;
+
+void* FindInOrder(int order){
+    MallocMetaDatta* iterate = OrdersArray[order];
+    while(iterate!= nullptr){
+        if(iterate->is_free){
+            iterate->is_free = false;
+            return iterate->address;
+        }
+        iterate = iterate->next;
+    }
+    return nullptr;
+}
+
 void init_list(){
-    int address = 0;
     if(!is_list_initialized){
-        for(int i=0;i<32;i++){
-            MallocMetaDatta* node = (MallocMetaDatta*) malloc(sizeof(MAXSIZEOFBLOCK));
-            node->next_baddy_block = nullptr;
-            node->prev_baddy_block = nullptr;
-            node->parent = nullptr;
-            node->son = nullptr;
-            node->relative_address = address;
-            //node->size = MAXSIZEOFBLOCK - sizeof(MallocMetaDatta);
-            node->size = MAXSIZEOFBLOCK;
-            if(i==0){
-                metaData_first = node;
-            }
-            if(i==31){
-                mettaData_last == node;
-            }
-            address+=MAXSIZEOFBLOCK;
+        void* currentAddress = sbrk(0);
+        unsigned long currentAddressLong = (long)(currentAddress);
+        unsigned long toReduce = currentAddressLong % (128 * 1024 * 32);
+        unsigned long correct_address = currentAddressLong + (128 * 1024 * 32) - toReduce;
+        void* address = (void*) correct_address;
+
+        MallocMetaDatta* prev_node;
+        prev_node->next = nullptr;
+        prev_node->prev = nullptr;
+        prev_node->address = address;
+        prev_node->size = MAXSIZEOFBLOCK;
+
+        OrdersArray[ORDERS] =  prev_node;
+
+
+        for(int i=1;i<32;i++){
+            MallocMetaDatta* cur_node;
+            cur_node->next = nullptr;
+            cur_node->prev = prev_node;
+            cur_node->address = address;
+            cur_node->size = MAXSIZEOFBLOCK;
+
+            prev_node->next = cur_node;
+
+            unsigned long next_address = (long) address;
+            next_address += MAXSIZEOFBLOCK;
+            address = (void*) next_address;
+
+            prev_node = cur_node;
         }
     }
     is_list_initialized = true;
@@ -76,32 +100,32 @@ void* smalloc(size_t size){
     if(size < 0 || size > 100000000){
         return nullptr;
     }
-    int cur_order = ORDERS-1;
+    int order = get_order(size + sizeof(MallocMetaDatta));
+    int cur_order = order;
     init_list();
     bool block_found = false;
-    int order = get_order(size + sizeof(MallocMetaDatta));
-    MallocMetaDatta* cur_parent = metaData_first;
-    MallocMetaDatta* cur_son;
-    if(order == ORDERS-1){
 
+    if(order == cur_order){
+        if(FindInOrder(ORDERS)!= nullptr){
+            return FindInOrder(ORDERS);
+        }
     }
-
-    while(cur_order > order && !block_found){
-        if(cur_parent->son){
-            cur_son = cur_parent->son;
+    while(cur_order<=ORDERS && !block_found){
+        //ADD: find the minimal address that is free
+        if(cur_order == order){
+            if(FindInOrder(cur_order)!= nullptr){
+                return FindInOrder(cur_order);
+            }
         }
         else{
-            MallocMetaDatta* new_son;
-            MallocMetaDatta* new_buddy_son;
-            cur_parent->son = new_son;
-            new_son->size = cur_parent->size/2;
-            new_son->parent = cur_parent;
-            new_son->next_baddy_block = new_buddy_son;
-            new_son->relative_address = cur_parent->relative_address;
-            new_buddy_son->relative_address = cur_parent->relative_address + cur_parent->size/2;
-            //continue adding fields
+            void* address = FindInOrder(cur_order)
+            if(addrees!= nullptr){
+                //split to 2 blocks and remove it from the top level also move the 2 block to lower level
+            }
         }
-        cur_order--;
+
+        cur_order++;
+
     }
 }
 #2
