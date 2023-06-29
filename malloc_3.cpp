@@ -18,25 +18,13 @@ struct MallocMetaDatta{
     bool is_free = true;
     MallocMetaDatta* next;
     MallocMetaDatta* prev;
+    int order;
 };
-/*
-struct ListedMalloc{
-    size_t num_of_blocks;
-    size_t size_of_blocks;
-    MallocMetaDatta* first = nullptr;
-    MallocMetaDatta* last = nullptr;
-    ListedMalloc* next_order;
-    ListedMalloc* prev_order;
-    size_t number_of_nodes = 0; //maybe
-};
-*/
 
-MallocMetaDatta* metaData_first = nullptr;
-MallocMetaDatta* mettaData_last = nullptr;
 
 MallocMetaDatta* OrdersArray[ORDERS+1]; //Cells of 0-10
 
-size_t get_order(size_t size){ //size in bytes
+int get_order(size_t size){ //size in bytes
     int order = ORDERS;
     int min_needed_blocks = MAXSIZEOFBLOCK;//(bytes)
     while(size < min_needed_blocks/2 && min_needed_blocks>= MINSIZEOFBLOCK){
@@ -47,12 +35,12 @@ size_t get_order(size_t size){ //size in bytes
 }
 bool is_list_initialized = false;
 
-void* FindInOrder(int order){
+MallocMetaDatta* FindInOrder(int order){
     MallocMetaDatta* iterate = OrdersArray[order];
     while(iterate!= nullptr){
         if(iterate->is_free){
             iterate->is_free = false;
-            return iterate->address;
+            return iterate;
         }
         iterate = iterate->next;
     }
@@ -72,7 +60,7 @@ void init_list(){
         prev_node->prev = nullptr;
         prev_node->address = address;
         prev_node->size = MAXSIZEOFBLOCK;
-
+        prev_node->order = ORDERS;
         OrdersArray[ORDERS] =  prev_node;
 
 
@@ -82,7 +70,7 @@ void init_list(){
             cur_node->prev = prev_node;
             cur_node->address = address;
             cur_node->size = MAXSIZEOFBLOCK;
-
+            prev_node->order = ORDERS;
             prev_node->next = cur_node;
 
             unsigned long next_address = (long) address;
@@ -94,7 +82,60 @@ void init_list(){
     }
     is_list_initialized = true;
 }
+void remove_node (MallocMetaDatta* block, int cur_order){
+    if(block == OrdersArray[cur_order]){
+        if(block->next != nullptr){
+            OrdersArray[cur_order] = block->next;
+            block->next->prev = nullptr;
+        }
+        else{
+            OrdersArray[cur_order] = nullptr;
+        }
+    }
+    else{
+        if(block->next != nullptr){
+            block->prev->next = block->next;
+            block->next->prev = block->prev;
+        }
+        else{
+            block->prev->next = nullptr;
+        }
+    }
+    block->prev = nullptr;
+    block->next = nullptr;
+}
 
+void add_to_ordered_list(MallocMetaDatta* added_block, int order){
+    MallocMetaDatta* iterate = OrdersArray[order];
+    while(iterate->next != nullptr){
+        iterate = iterate->next;
+    }
+    iterate->next = added_block;
+    added_block->prev = iterate;
+    added_block->next = nullptr;
+}
+
+void* split_blocks(MallocMetaDatta* min_block, int cur_order, int wanted_order){
+    if(cur_order == wanted_order){
+        return min_block->address;
+    }
+    remove_node(min_block,cur_order);
+    MallocMetaDatta* first = min_block;
+    first->size = first->size/2;
+    MallocMetaDatta* second = first;
+    first->order = cur_order-1;
+    second->order = cur_order-1;
+    first->is_free = false;
+    second->is_free = true;
+
+    long second_address = (long)first->address;
+    second_address = ((long) first->address)^((long)first->size);
+    second->address = (void*)second_address;
+    add_to_ordered_list(first,cur_order-1);
+    add_to_ordered_list(second,cur_order-1);
+
+    return split_blocks(first,cur_order-1,wanted_order);
+}
 #1
 void* smalloc(size_t size){
     if(size < 0 || size > 100000000){
@@ -103,31 +144,31 @@ void* smalloc(size_t size){
     int order = get_order(size + sizeof(MallocMetaDatta));
     int cur_order = order;
     init_list();
-    bool block_found = false;
-
-    if(order == cur_order){
-        if(FindInOrder(ORDERS)!= nullptr){
-            return FindInOrder(ORDERS);
-        }
-    }
-    while(cur_order<=ORDERS && !block_found){
+    MallocMetaDatta* min_block;
+    min_block->address = nullptr;
+    int order_of_min_block;
+    while(cur_order<=ORDERS){
         //ADD: find the minimal address that is free
-        if(cur_order == order){
-            if(FindInOrder(cur_order)!= nullptr){
-                return FindInOrder(cur_order);
+        MallocMetaDatta* candidate_block = FindInOrder(cur_order);
+        if(candidate_block!= nullptr){
+            if(min_block->address == nullptr){
+                min_block = candidate_block;
+                order_of_min_block = cur_order;
+            }
+            else{
+                if((long)candidate_block->address <= (long)min_block->address){
+                    min_block = candidate_block;
+                    order_of_min_block = cur_order;
+                }
             }
         }
-        else{
-            void* address = FindInOrder(cur_order)
-            if(addrees!= nullptr){
-                //split to 2 blocks and remove it from the top level also move the 2 block to lower level
-            }
-        }
-
         cur_order++;
-
     }
+    if(min_block->address == nullptr) return nullptr;
+    //splitting while the current order isn't the requested order for the block:
+    return split_blocks(min_block, order_of_min_block, order);
 }
+
 #2
 void* scalloc(size_t num, size_t size){
     if(size == 0 || num == 0){
@@ -140,22 +181,52 @@ void* scalloc(size_t num, size_t size){
     }
     return nullptr;
 }
+MallocMetaDatta* find_address_in_array (void* p){
+    for(int i=0;i<ORDERS+1 ;i++){
+        MallocMetaDatta* Iterate = OrdersArray[i];
+        while(Iterate!= nullptr){
+            if(Iterate->address == p) return Iterate;
+        }
+    }
+    return nullptr;
+}
+
+void* get_buddy_address(MallocMetaDatta* block){
+    long buddy_address = ((long) block->address)^((long)block->size);
+    return (void*)buddy_address;
+}
+
+void* min_address (void* addr1, void* addr2){
+    if((long)addr1 <= (long) addr2) return addr1;
+    return addr2;
+}
+
+void merge_buddies (MallocMetaDatta* cur_block, int cur_order){
+    if(cur_order == ORDERS) return;
+    MallocMetaDatta* buddy = find_address_in_array(get_buddy_address(cur_block));
+    if(!buddy->is_free) return;
+
+    MallocMetaDatta* union_block;
+    union_block->size = cur_block->size*2;
+    union_block->address = min_address(cur_block->address,buddy->address);
+    union_block->is_free = true;
+    union_block->order = cur_order+1;
+    remove_node(cur_block,cur_order);
+    remove_node(buddy,cur_order);
+    add_to_ordered_list(union_block,cur_order+1);
+    merge_buddies(union_block,cur_order+1);
+}
+
 #3
 void sfree(void* p){
     if(p == nullptr){
         return;
     }
-    MallocMetaDatta* tmp = metaData_first;
-    while(tmp != nullptr){
-        if((void*)(long(tmp) + sizeof(MallocMetaDatta)) == p){
-            if(tmp->is_free == true){
-                return;
-            }
-            tmp->is_free = true;
-            return;
-        }
-        tmp = tmp->next;
-    }
+    MallocMetaDatta* wanted_block = find_address_in_array(p);
+    if(wanted_block == nullptr) return;
+    if(wanted_block->is_free == true) return;
+    wanted_block->is_free = true;
+    merge_buddies(wanted_block,wanted_block->order);
 }
 #4
 void* srealloc(void* oldp, size_t size){
