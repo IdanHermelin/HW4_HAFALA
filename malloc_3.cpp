@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <iostream>
 #include <cstring>
+#include <sys/mman.h>
+#include <fcntl.h>
 #define MINSIZEOFBLOCK 128
 #define MAXSIZEOFBLOCK 128*1024 //128KB
 #define ORDERS 10
@@ -23,6 +25,9 @@ struct MallocMetaDatta{
 
 
 MallocMetaDatta* OrdersArray[ORDERS+1]; //Cells of 0-10
+MallocMetaDatta* first_mmap_block = nullptr;
+MallocMetaDatta* last_mmap_block = nullptr;
+
 
 int get_order(size_t size){ //size in bytes
     int order = ORDERS;
@@ -136,8 +141,37 @@ void* split_blocks(MallocMetaDatta* min_block, int cur_order, int wanted_order){
 
     return split_blocks(first,cur_order-1,wanted_order);
 }
+void* allocate_mmap_block(size_t size){
+    void* new_allocate = mmap(nullptr,size+sizeof(MallocMetaDatta),
+                              PROT_READ | PROT_WRITE,MAP_SHARED | MAP_ANONYMOUS,-1,0);
+    if(new_allocate == MAP_FAILED){
+        return nullptr;
+    }
+    MallocMetaDatta* newAllocatedBlock = (MallocMetaDatta*) new_allocate;
+    newAllocatedBlock->size = size;
+    newAllocatedBlock->is_free = false;
+    newAllocatedBlock->next = nullptr;
+    if(first_mmap_block == nullptr){
+        first_mmap_block = newAllocatedBlock;
+        last_mmap_block = newAllocatedBlock;
+        last_mmap_block->prev = nullptr;
+        first_mmap_block->prev = nullptr;
+    }
+    else{
+        last_mmap_block->next = newAllocatedBlock;
+        newAllocatedBlock->prev = last_mmap_block;
+        last_mmap_block = last_mmap_block->next;
+    }
+    newAllocatedBlock->address = (void*) ((long)new_allocate+ sizeof (MallocMetaDatta));
+    return newAllocatedBlock->address;
+}
+
 #1
 void* smalloc(size_t size){
+    if(size > MAXSIZEOFBLOCK){ //we need to use mmap
+        return allocate_mmap_block(size);
+    }
+
     if(size < 0 || size > 100000000){
         return nullptr;
     }
