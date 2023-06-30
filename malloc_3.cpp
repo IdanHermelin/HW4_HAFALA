@@ -166,6 +166,44 @@ void* allocate_mmap_block(size_t size){
     return newAllocatedBlock->address;
 }
 
+
+MallocMetaDatta* find_mmap_block(void* p){
+    MallocMetaDatta* iterate = first_mmap_block;
+    while(iterate != nullptr){
+        if(iterate->address == p){
+            return iterate;
+        }
+        iterate = iterate->next;
+    }
+    return nullptr;
+}
+
+
+void free_mmap_block(MallocMetaDatta* to_free){
+
+    if(to_free == first_mmap_block){
+        if(to_free->next == nullptr){
+            first_mmap_block = nullptr;
+            last_mmap_block = nullptr;
+        }
+        else{
+            first_mmap_block = first_mmap_block->next;
+        }
+    }
+    else{
+        if(to_free == last_mmap_block){
+            last_mmap_block = last_mmap_block->prev;
+            last_mmap_block->next = nullptr;
+        }
+        else{
+            to_free->prev->next = to_free->next;
+            to_free->next->prev = to_free->prev;
+        }
+    }
+    munmap(to_free,sizeof(MallocMetaDatta) + to_free->size);
+}
+
+
 #1
 void* smalloc(size_t size){
     if(size > MAXSIZEOFBLOCK){ //we need to use mmap
@@ -254,6 +292,11 @@ void merge_buddies (MallocMetaDatta* cur_block, int cur_order){
 #3
 void sfree(void* p){
     if(p == nullptr){
+        return;
+    }
+    MallocMetaDatta* is_mmap = find_mmap_block(p);
+    if(is_mmap != nullptr){
+        free_mmap_block(is_mmap);
         return;
     }
     MallocMetaDatta* wanted_block = find_address_in_array(p);

@@ -5,8 +5,15 @@
 #include <stdio.h>
 #include <iostream>
 #include <cstring>
+#include "math.h"
+#include <cstdlib>
+#include <ctime>
+#include <cstdint>
+
+
 
 struct MallocMetaDatta{
+    int32_t cookie;
     size_t size;
     bool is_free;
     MallocMetaDatta* next;
@@ -15,6 +22,20 @@ struct MallocMetaDatta{
 
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
+
+
+
+int32_t expected_cookie = rand()
+
+
+
+void check_cookie(MallocMetaDatta* block){
+    if(block->cookie != )
+}
+
+
+
+
 #1
 void* smalloc(size_t size){
     if(size < 0 || size > 100000000){
@@ -23,7 +44,7 @@ void* smalloc(size_t size){
     MallocMetaDatta* tmp = metaData_first;
     while(tmp != nullptr){
         if(tmp->size >= size && tmp->is_free == true){
-            return tmp;
+            return (void*)((long)tmp+sizeof(MallocMetaDatta));
         }
         tmp = tmp->next;
     }
@@ -157,9 +178,6 @@ size_t _num_meta_data_bytes(){
 size_t _size_meta_data(){
     return sizeof(MallocMetaDatta);
 }
-
-
-
 
 
 
