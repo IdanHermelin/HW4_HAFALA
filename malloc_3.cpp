@@ -43,8 +43,8 @@ bool check_cookie(MallocMetaDatta* checked_block){
 
 int get_order(size_t size){ //size in bytes
     int order = ORDERS;
-    int min_needed_blocks = MAXSIZEOFBLOCK - sizeof(MallocMetaDatta);//(bytes)
-    while(size < min_needed_blocks/2 && min_needed_blocks>= MINSIZEOFBLOCK){
+    int min_needed_blocks = MAXSIZEOFBLOCK ;//(bytes)
+    while(size < min_needed_blocks/2 -sizeof(MallocMetaDatta) && min_needed_blocks>= MINSIZEOFBLOCK){
         min_needed_blocks = min_needed_blocks/2;
         order--;
     }
