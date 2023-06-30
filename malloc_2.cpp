@@ -24,7 +24,7 @@ MallocMetaDatta* mettaData_last = nullptr;
 
 
 void* smalloc(size_t size){
-    if(size < 0 || size > 100000000){
+    if(size <= 0 || size > 100000000){
         return nullptr;
     }
     MallocMetaDatta* tmp = metaData_first;

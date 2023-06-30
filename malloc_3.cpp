@@ -68,7 +68,7 @@ MallocMetaDatta* FindInOrder(int order){
 void init_list(){
     if(!is_list_initialized){
         srand(static_cast <unsigned>(time(0)));
-        global_cookie = rand() % (INT32_MAX + 1);
+        global_cookie = rand() % (INT32_MAX);
 
         void* currentAddress = sbrk(0);
         unsigned long currentAddressLong = (long)(currentAddress);
@@ -76,7 +76,7 @@ void init_list(){
         unsigned long correct_address = currentAddressLong + (128 * 1024 * 32) - toReduce;
         void* address = (void*) correct_address;
 
-        MallocMetaDatta* prev_node;
+        MallocMetaDatta* prev_node = (MallocMetaDatta*)address;
         prev_node->next = nullptr;
         prev_node->prev = nullptr;
         prev_node->address = address;
@@ -87,7 +87,7 @@ void init_list(){
 
 
         for(int i=1;i<32;i++){
-            MallocMetaDatta* cur_node;
+            MallocMetaDatta* cur_node = (MallocMetaDatta*)address;
             cur_node->next = nullptr;
             cur_node->prev = prev_node;
             cur_node->address = address;
@@ -239,19 +239,21 @@ void* smalloc(size_t size){
     int cur_order = order;
     init_list();
     MallocMetaDatta* min_block;
-    min_block->address = nullptr;
+    void* target_address = nullptr;
     int order_of_min_block;
     while(cur_order<=ORDERS){
         //ADD: find the minimal address that is free
         MallocMetaDatta* candidate_block = FindInOrder(cur_order);
         if(candidate_block!= nullptr){
-            if(min_block->address == nullptr){
+            if(target_address == nullptr){
                 min_block = candidate_block;
+                target_address = candidate_block->address;
                 order_of_min_block = cur_order;
             }
             else{
-                if((long)candidate_block->address <= (long)min_block->address){
+                if((long)candidate_block->address <= (long)target_address){
                     min_block = candidate_block;
+                    target_address = candidate_block->address;
                     order_of_min_block = cur_order;
                 }
             }
@@ -301,7 +303,7 @@ void* merge_buddies (MallocMetaDatta* cur_block, int cur_order,int max_order,boo
     MallocMetaDatta* buddy = find_address_in_array(get_buddy_address(cur_block));
     if(cond_needed && !buddy->is_free) return cur_block->address;
 
-    MallocMetaDatta* union_block;
+    MallocMetaDatta* union_block = cur_block;
     union_block->size = cur_block->size*2;
     union_block->address = min_address(cur_block->address,buddy->address);
     union_block->is_free = true;
@@ -332,6 +334,7 @@ void sfree(void* p){
     wanted_block->is_free = true;
     merge_buddies(wanted_block,wanted_block->order,ORDERS,true);
 }
+
 
 void* srealloc(void* oldp, size_t size){
     if(size == 0 || size > 100000000){
