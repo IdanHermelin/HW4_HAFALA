@@ -227,7 +227,7 @@ void free_mmap_block(MallocMetaDatta* to_free){
 }
 
 
-#1
+
 void* smalloc(size_t size){
     if(size > MAXSIZEOFBLOCK){ //we need to use mmap
         return allocate_mmap_block(size);
@@ -263,7 +263,7 @@ void* smalloc(size_t size){
     return split_blocks(min_block, order_of_min_block, order);
 }
 
-#2
+
 void* scalloc(size_t num, size_t size){
     if(size == 0 || num == 0){
         return nullptr;
@@ -313,7 +313,7 @@ void* merge_buddies (MallocMetaDatta* cur_block, int cur_order,int max_order,boo
     return merge_buddies(union_block,cur_order+1,max_order,cond_needed);
 }
 
-#3
+
 void sfree(void* p){
     if(p == nullptr){
         return;
@@ -332,7 +332,6 @@ void sfree(void* p){
     wanted_block->is_free = true;
     merge_buddies(wanted_block,wanted_block->order,ORDERS,true);
 }
-#4
 
 void* srealloc(void* oldp, size_t size){
     if(size == 0 || size > 100000000){
@@ -374,7 +373,7 @@ void* srealloc(void* oldp, size_t size){
     return newAllocation;
 }
 
-#5
+
 size_t _num_free_blocks(){
     size_t counter=0;
     for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
@@ -389,7 +388,7 @@ size_t _num_free_blocks(){
     }
     return counter;
 }
-#6
+
 size_t _num_free_bytes(){
     size_t counter=0;
     for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
@@ -404,7 +403,7 @@ size_t _num_free_bytes(){
     }
     return counter;
 }
-#7
+
 size_t _num_allocated_blocks(){
     size_t counter=0;
     for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
@@ -424,7 +423,7 @@ size_t _num_allocated_blocks(){
     }
     return counter;
 }
-#8
+
 size_t _num_allocated_bytes() {
     size_t counter=0;
     for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
@@ -444,11 +443,11 @@ size_t _num_allocated_bytes() {
     }
     return counter;
 }
-#9
+
 size_t _num_meta_data_bytes(){
     return sizeof(MallocMetaDatta)* _num_allocated_blocks();
 }
-#10
+
 size_t _size_meta_data(){
     return sizeof(MallocMetaDatta);
 }
