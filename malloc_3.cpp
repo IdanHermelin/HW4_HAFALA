@@ -43,7 +43,7 @@ bool check_cookie(MallocMetaDatta* checked_block){
 
 int get_order(size_t size){ //size in bytes
     int order = ORDERS;
-    int min_needed_blocks = MAXSIZEOFBLOCK;//(bytes)
+    int min_needed_blocks = MAXSIZEOFBLOCK - sizeof(MallocMetaDatta);//(bytes)
     while(size < min_needed_blocks/2 && min_needed_blocks>= MINSIZEOFBLOCK){
         min_needed_blocks = min_needed_blocks/2;
         order--;
@@ -296,10 +296,10 @@ void* min_address (void* addr1, void* addr2){
     return addr2;
 }
 
-void merge_buddies (MallocMetaDatta* cur_block, int cur_order){
-    if(cur_order == ORDERS) return;
+void* merge_buddies (MallocMetaDatta* cur_block, int cur_order,int max_order,bool cond_needed){
+    if(cur_order == max_order) return cur_block->address;
     MallocMetaDatta* buddy = find_address_in_array(get_buddy_address(cur_block));
-    if(!buddy->is_free) return;
+    if(cond_needed && !buddy->is_free) return cur_block->address;
 
     MallocMetaDatta* union_block;
     union_block->size = cur_block->size*2;
@@ -310,7 +310,7 @@ void merge_buddies (MallocMetaDatta* cur_block, int cur_order){
     remove_node(cur_block,cur_order);
     remove_node(buddy,cur_order);
     add_to_ordered_list(union_block,cur_order+1);
-    merge_buddies(union_block,cur_order+1);
+    return merge_buddies(union_block,cur_order+1,max_order,cond_needed);
 }
 
 #3
@@ -330,9 +330,10 @@ void sfree(void* p){
     if(wanted_block == nullptr) return;
     if(wanted_block->is_free == true) return;
     wanted_block->is_free = true;
-    merge_buddies(wanted_block,wanted_block->order);
+    merge_buddies(wanted_block,wanted_block->order,ORDERS,true);
 }
 #4
+
 void* srealloc(void* oldp, size_t size){
     if(size == 0 || size > 100000000){
         return nullptr;
@@ -341,17 +342,29 @@ void* srealloc(void* oldp, size_t size){
         void* newAllocate = smalloc(size);
         return newAllocate;
     }
-    MallocMetaDatta* tmp = metaData_first;
+    int order_of_size = get_order(size);
     size_t oldpSize;
-    while(tmp != nullptr){
-        if((void*)(long(tmp) + sizeof(MallocMetaDatta)) == oldp){
-            oldpSize = tmp->size;
-            if(tmp->size >= size){
+    //check when size is not for mmap
+    if(size <= MAXSIZEOFBLOCK){
+        MallocMetaDatta* p_block = find_address_in_array(oldp);
+        if(p_block != nullptr){
+            oldpSize = p_block->size - sizeof(MallocMetaDatta);
+            if(oldpSize >= size){
                 return oldp;
             }
+            else{
+                return merge_buddies(p_block,p_block->order,order_of_size,false);
+            }
         }
-        tmp = tmp->next;
     }
+
+    //check when size is for mmap
+    MallocMetaDatta* res = find_mmap_block(oldp);
+    oldpSize = res->size;
+    if(res->size == size){
+        return res->address;
+    }
+    //oldp is not enough
     void* newAllocation = smalloc(size);
     if(newAllocation == nullptr){
         return nullptr;
