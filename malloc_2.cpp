@@ -5,15 +5,11 @@
 #include <stdio.h>
 #include <iostream>
 #include <cstring>
-#include "math.h"
-#include <cstdlib>
-#include <ctime>
-#include <cstdint>
+
 
 
 
 struct MallocMetaDatta{
-    int32_t cookie;
     size_t size;
     bool is_free;
     MallocMetaDatta* next;
@@ -23,15 +19,6 @@ struct MallocMetaDatta{
 MallocMetaDatta* metaData_first = nullptr;
 MallocMetaDatta* mettaData_last = nullptr;
 
-
-
-int32_t expected_cookie = rand()
-
-
-
-void check_cookie(MallocMetaDatta* block){
-    if(block->cookie != )
-}
 
 
 

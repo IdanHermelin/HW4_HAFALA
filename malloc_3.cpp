@@ -10,11 +10,17 @@
 #include <cstring>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include "math.h"
+#include <cstdlib>
+#include <ctime>
+#include <cstdint>
+
 #define MINSIZEOFBLOCK 128
 #define MAXSIZEOFBLOCK 128*1024 //128KB
 #define ORDERS 10
 
 struct MallocMetaDatta{
+    int32_t cookie;
     void* address;
     size_t size;
     bool is_free = true;
@@ -23,11 +29,17 @@ struct MallocMetaDatta{
     int order;
 };
 
-
+int32_t global_cookie;
 MallocMetaDatta* OrdersArray[ORDERS+1]; //Cells of 0-10
 MallocMetaDatta* first_mmap_block = nullptr;
 MallocMetaDatta* last_mmap_block = nullptr;
 
+bool check_cookie(MallocMetaDatta* checked_block){
+    if(checked_block->cookie!= global_cookie){
+        exit(0xdeadbeef);
+    }
+    return true;
+}
 
 int get_order(size_t size){ //size in bytes
     int order = ORDERS;
@@ -43,6 +55,7 @@ bool is_list_initialized = false;
 MallocMetaDatta* FindInOrder(int order){
     MallocMetaDatta* iterate = OrdersArray[order];
     while(iterate!= nullptr){
+        check_cookie(iterate); //check for all the blocks in the current order
         if(iterate->is_free){
             iterate->is_free = false;
             return iterate;
@@ -54,6 +67,9 @@ MallocMetaDatta* FindInOrder(int order){
 
 void init_list(){
     if(!is_list_initialized){
+        srand(static_cast <unsigned>(time(0)));
+        global_cookie = rand() % (INT32_MAX + 1);
+
         void* currentAddress = sbrk(0);
         unsigned long currentAddressLong = (long)(currentAddress);
         unsigned long toReduce = currentAddressLong % (128 * 1024 * 32);
@@ -66,6 +82,7 @@ void init_list(){
         prev_node->address = address;
         prev_node->size = MAXSIZEOFBLOCK;
         prev_node->order = ORDERS;
+        prev_node->cookie = global_cookie;
         OrdersArray[ORDERS] =  prev_node;
 
 
@@ -75,6 +92,7 @@ void init_list(){
             cur_node->prev = prev_node;
             cur_node->address = address;
             cur_node->size = MAXSIZEOFBLOCK;
+            cur_node->cookie = global_cookie;
             prev_node->order = ORDERS;
             prev_node->next = cur_node;
 
@@ -132,6 +150,8 @@ void* split_blocks(MallocMetaDatta* min_block, int cur_order, int wanted_order){
     second->order = cur_order-1;
     first->is_free = false;
     second->is_free = true;
+    first->cookie = global_cookie;
+    second->cookie = global_cookie;
 
     long second_address = (long)first->address;
     second_address = ((long) first->address)^((long)first->size);
@@ -151,6 +171,8 @@ void* allocate_mmap_block(size_t size){
     newAllocatedBlock->size = size;
     newAllocatedBlock->is_free = false;
     newAllocatedBlock->next = nullptr;
+    newAllocatedBlock->cookie = global_cookie;
+
     if(first_mmap_block == nullptr){
         first_mmap_block = newAllocatedBlock;
         last_mmap_block = newAllocatedBlock;
@@ -170,6 +192,7 @@ void* allocate_mmap_block(size_t size){
 MallocMetaDatta* find_mmap_block(void* p){
     MallocMetaDatta* iterate = first_mmap_block;
     while(iterate != nullptr){
+        check_cookie(iterate);
         if(iterate->address == p){
             return iterate;
         }
@@ -209,7 +232,6 @@ void* smalloc(size_t size){
     if(size > MAXSIZEOFBLOCK){ //we need to use mmap
         return allocate_mmap_block(size);
     }
-
     if(size < 0 || size > 100000000){
         return nullptr;
     }
@@ -257,6 +279,7 @@ MallocMetaDatta* find_address_in_array (void* p){
     for(int i=0;i<ORDERS+1 ;i++){
         MallocMetaDatta* Iterate = OrdersArray[i];
         while(Iterate!= nullptr){
+            check_cookie(Iterate);
             if(Iterate->address == p) return Iterate;
         }
     }
@@ -283,6 +306,7 @@ void merge_buddies (MallocMetaDatta* cur_block, int cur_order){
     union_block->address = min_address(cur_block->address,buddy->address);
     union_block->is_free = true;
     union_block->order = cur_order+1;
+    union_block->cookie = global_cookie;
     remove_node(cur_block,cur_order);
     remove_node(buddy,cur_order);
     add_to_ordered_list(union_block,cur_order+1);
@@ -296,6 +320,9 @@ void sfree(void* p){
     }
     MallocMetaDatta* is_mmap = find_mmap_block(p);
     if(is_mmap != nullptr){
+        if(is_mmap->is_free){
+            return;
+        }
         free_mmap_block(is_mmap);
         return;
     }
@@ -336,45 +363,71 @@ void* srealloc(void* oldp, size_t size){
 
 #5
 size_t _num_free_blocks(){
-    MallocMetaDatta* tmp = metaData_first;
     size_t counter=0;
-    while(tmp != nullptr){
-        if(tmp->is_free){
-            counter++;
+    for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
+        MallocMetaDatta* tmp = OrdersArray[cur_order];
+        while(tmp != nullptr){
+            check_cookie(tmp);
+            if(tmp->is_free){
+                counter++;
+            }
+            tmp = tmp->next;
         }
-        tmp = tmp->next;
     }
     return counter;
 }
 #6
 size_t _num_free_bytes(){
-    MallocMetaDatta* tmp = metaData_first;
     size_t counter=0;
-    while(tmp != nullptr){
-        if(tmp->is_free){
-            counter+= tmp->size;
+    for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
+        MallocMetaDatta* tmp = OrdersArray[cur_order];
+        while(tmp != nullptr){
+            check_cookie(tmp);
+            if(tmp->is_free){
+                counter+= tmp->size - sizeof(MallocMetaDatta);
+            }
+            tmp = tmp->next;
         }
-        tmp = tmp->next;
     }
     return counter;
 }
 #7
 size_t _num_allocated_blocks(){
-    MallocMetaDatta* tmp = metaData_first;
     size_t counter=0;
-    while(tmp != nullptr){
+    for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
+        MallocMetaDatta* tmp = OrdersArray[cur_order];
+        while(tmp != nullptr){
+            check_cookie(tmp);
+            counter++;
+            tmp = tmp->next;
+        }
+    }
+    //iterate for the mmap blocks:
+    MallocMetaDatta* iterate = first_mmap_block;
+    while(iterate != nullptr){
+        check_cookie(iterate);
         counter++;
-        tmp = tmp->next;
+        iterate = iterate->next;
     }
     return counter;
 }
 #8
 size_t _num_allocated_bytes() {
-    MallocMetaDatta *tmp = metaData_first;
-    size_t counter = 0;
-    while (tmp != nullptr) {
-        counter += tmp->size;
-        tmp = tmp->next;
+    size_t counter=0;
+    for(int cur_order = 0 ; cur_order<=ORDERS ;cur_order++){
+        MallocMetaDatta* tmp = OrdersArray[cur_order];
+        while(tmp != nullptr){
+            check_cookie(tmp);
+            counter+= tmp->size - sizeof(MallocMetaDatta);
+            tmp = tmp->next;
+        }
+    }
+    //iterate for the mmap blocks:
+    MallocMetaDatta* iterate = first_mmap_block;
+    while(iterate != nullptr){
+        check_cookie(iterate);
+        counter += iterate->size;
+        iterate = iterate->next;
     }
     return counter;
 }
