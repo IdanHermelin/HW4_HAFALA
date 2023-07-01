@@ -71,15 +71,17 @@ void init_list(){
         global_cookie = rand() % (INT32_MAX);
 
         void* currentAddress = sbrk(0);
+
         unsigned long currentAddressLong = (long)(currentAddress);
         unsigned long toReduce = currentAddressLong % (128 * 1024 * 32);
-        unsigned long correct_address = currentAddressLong + (128 * 1024 * 32) - toReduce;
-        void* address = (void*) correct_address;
+        //unsigned long correct_address = currentAddressLong + (128 * 1024 * 32) - toReduce;
+        //void* address = (void*) correct_address;
+        currentAddress = sbrk((128 * 1024 * 32) - toReduce);
 
-        MallocMetaDatta* prev_node = (MallocMetaDatta*)address;
+        auto* prev_node =static_cast<MallocMetaDatta*> (currentAddress);
         prev_node->next = nullptr;
         prev_node->prev = nullptr;
-        prev_node->address = address;
+        prev_node->address = currentAddress;
         prev_node->size = MAXSIZEOFBLOCK;
         prev_node->order = ORDERS;
         prev_node->cookie = global_cookie;
@@ -87,18 +89,18 @@ void init_list(){
 
 
         for(int i=1;i<32;i++){
-            MallocMetaDatta* cur_node = (MallocMetaDatta*)address;
+            MallocMetaDatta* cur_node = prev_node;
             cur_node->next = nullptr;
             cur_node->prev = prev_node;
-            cur_node->address = address;
+            cur_node->address = currentAddress;
             cur_node->size = MAXSIZEOFBLOCK;
             cur_node->cookie = global_cookie;
             prev_node->order = ORDERS;
             prev_node->next = cur_node;
 
-            unsigned long next_address = (long) address;
+            unsigned long next_address = (long) currentAddress;
             next_address += MAXSIZEOFBLOCK;
-            address = (void*) next_address;
+            currentAddress = (void*) next_address;
 
             prev_node = cur_node;
         }
@@ -453,4 +455,9 @@ size_t _num_meta_data_bytes(){
 
 size_t _size_meta_data(){
     return sizeof(MallocMetaDatta);
+}
+
+int main() {
+    void* address = smalloc(40);
+    return 0;
 }

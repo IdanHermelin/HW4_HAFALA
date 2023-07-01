@@ -1,6 +1,6 @@
-#include <iostream>
 
-int main() {
-    std::cout << "Hello, World!" << std::endl;
-    return 0;
-}
+//#include "malloc_3.cpp"
+//int main() {
+//    void* address = smalloc(40);
+//    return 0;
+//}
