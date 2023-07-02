@@ -19,11 +19,12 @@
 #define MAXSIZEOFBLOCK 128*1024 //128KB
 #define ORDERS 10
 
+uintptr_t size_of_block = MAXSIZEOFBLOCK;
 struct MallocMetaDatta{
     int32_t cookie;
     void* address;
     size_t size;
-    bool is_free = true;
+    bool is_free;
     MallocMetaDatta* next;
     MallocMetaDatta* prev;
     int order;
@@ -40,6 +41,12 @@ bool check_cookie(MallocMetaDatta* checked_block){
     }
     return true;
 }
+
+MallocMetaDatta* get_MallocMettaData(void* p){
+    MallocMetaDatta* to_return = (MallocMetaDatta*) ((char*)p - sizeof(MallocMetaDatta));
+    return to_return;
+}
+
 
 int get_order(size_t size){ //size in bytes
     int order = ORDERS;
@@ -72,35 +79,45 @@ void init_list(){
 
         void* currentAddress = sbrk(0);
 
-        unsigned long currentAddressLong = (long)(currentAddress);
-        unsigned long toReduce = currentAddressLong % (128 * 1024 * 32);
+        uintptr_t currentAddressLong = reinterpret_cast<uintptr_t>(currentAddress);
+        uintptr_t toReduce = currentAddressLong % (128 * 1024 * 32);
         //unsigned long correct_address = currentAddressLong + (128 * 1024 * 32) - toReduce;
         //void* address = (void*) correct_address;
         currentAddress = sbrk((128 * 1024 * 32) - toReduce);
 
-        auto* prev_node =static_cast<MallocMetaDatta*> (currentAddress);
+        MallocMetaDatta* prev_node = get_MallocMettaData(currentAddress);
         prev_node->next = nullptr;
         prev_node->prev = nullptr;
         prev_node->address = currentAddress;
+        prev_node->is_free = true;
         prev_node->size = MAXSIZEOFBLOCK;
         prev_node->order = ORDERS;
         prev_node->cookie = global_cookie;
         OrdersArray[ORDERS] =  prev_node;
 
+//        uintptr_t next_address = reinterpret_cast<uintptr_t>(currentAddress);
+//        next_address += size_of_block;
+//        currentAddress = reinterpret_cast<void*>(next_address);
+        currentAddress = sbrk(MAXSIZEOFBLOCK);
 
         for(int i=1;i<32;i++){
-            MallocMetaDatta* cur_node = prev_node;
+            if(i == 4){
+                int y = 4;
+            }
+            MallocMetaDatta* cur_node = get_MallocMettaData(currentAddress);
             cur_node->next = nullptr;
-            cur_node->prev = prev_node;
+             cur_node->prev = prev_node;
             cur_node->address = currentAddress;
+            cur_node->is_free = true;
             cur_node->size = MAXSIZEOFBLOCK;
             cur_node->cookie = global_cookie;
             prev_node->order = ORDERS;
             prev_node->next = cur_node;
 
-            unsigned long next_address = (long) currentAddress;
-            next_address += MAXSIZEOFBLOCK;
-            currentAddress = (void*) next_address;
+//            uintptr_t next_address = reinterpret_cast<uintptr_t>(currentAddress);
+//            next_address += MAXSIZEOFBLOCK;
+            currentAddress = sbrk(MAXSIZEOFBLOCK);
+//            currentAddress = reinterpret_cast<void*>(next_address);
 
             prev_node = cur_node;
         }
@@ -131,6 +148,12 @@ void remove_node (MallocMetaDatta* block, int cur_order){
 }
 
 void add_to_ordered_list(MallocMetaDatta* added_block, int order){
+    if(OrdersArray[order] == nullptr){
+        OrdersArray[order] = added_block;
+        added_block->prev = nullptr;
+        added_block->next = nullptr;
+        return;
+    }
     MallocMetaDatta* iterate = OrdersArray[order];
     while(iterate->next != nullptr){
         iterate = iterate->next;
