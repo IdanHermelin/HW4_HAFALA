@@ -63,7 +63,7 @@ MallocMetaDatta* get_MallocMettaData(void* p){
 int get_order(size_t size){ //size in bytes
     int order = ORDERS;
     int min_needed_blocks = MAXSIZEOFBLOCK ;//(bytes)
-    while(size < min_needed_blocks/2 -sizeof(MallocMetaDatta) && min_needed_blocks>= MINSIZEOFBLOCK){
+    while(size <= min_needed_blocks/2 -sizeof(MallocMetaDatta) && min_needed_blocks>= MINSIZEOFBLOCK){
         min_needed_blocks = min_needed_blocks/2;
         order--;
     }
@@ -205,12 +205,12 @@ void* split_blocks(MallocMetaDatta* min_block, int cur_order, int wanted_order){
 //    second_address = ((long) first->address)^((long)first->size);
 //    second->address = (void*)second_address;
 
-    add_to_ordered_list(first,cur_order-1);
-    std::cout<<"adding first" <<std::endl;
-    print_array();
-    std::cout<<"adding second" <<std::endl;
-    add_to_ordered_list(second,cur_order-1);
-    print_array();
+      add_to_ordered_list(first,cur_order-1);
+//    std::cout<<"adding first" <<std::endl;
+//    print_array();
+//    std::cout<<"adding second" <<std::endl;
+      add_to_ordered_list(second,cur_order-1);
+//    print_array();
 
     return split_blocks(first,cur_order-1,wanted_order);
 }
@@ -283,40 +283,31 @@ void free_mmap_block(MallocMetaDatta* to_free){
 
 
 void* smalloc(size_t size){
+    init_list();
     if(size > MAXSIZEOFBLOCK){ //we need to use mmap
         return allocate_mmap_block(size);
     }
     if(size < 0 || size > 100000000){
         return nullptr;
     }
-    int order = get_order(size + sizeof(MallocMetaDatta));
+    int order = get_order(size ); //+ sizeof(MallocMetaDatta)
     int cur_order = order;
-    init_list();
     MallocMetaDatta* min_block;
-    void* target_address = nullptr;
-    int order_of_min_block;
+    //void* target_address = nullptr;
+    int order_of_min_block = ORDERS;
     while(cur_order<=ORDERS){
         //ADD: find the minimal address that is free
         MallocMetaDatta* candidate_block = FindInOrder(cur_order);
-        if(candidate_block!= nullptr){
-            if(target_address == nullptr){
-                min_block = candidate_block;
-                target_address = candidate_block->address;
-                order_of_min_block = cur_order;
-            }
-            else{
-                if((long)candidate_block->address <= (long)target_address){
-                    min_block = candidate_block;
-                    target_address = candidate_block->address;
-                    order_of_min_block = cur_order;
-                }
-            }
+        if(candidate_block!= nullptr) {
+            min_block = candidate_block;
+            order_of_min_block = cur_order;
+            //splitting while the current order isn't the requested order for the block:
+            return split_blocks(min_block, order_of_min_block, order);
         }
         cur_order++;
     }
-    if(min_block->address == nullptr) return nullptr;
-    //splitting while the current order isn't the requested order for the block:
-    return split_blocks(min_block, order_of_min_block, order);
+    return nullptr;
+
 }
 
 
@@ -511,23 +502,24 @@ size_t _size_meta_data(){
 
 int main() {
     //std::cout<< _size_meta_data() <<std::endl;
-
+    MallocMetaDatta** Array = OrdersArray;
     void* pt1 = smalloc(40);
-//    std::cout<< "after 1 alloc" <<std::endl;
-//    print_array();
 
-    void* pt2 = smalloc(MAXSIZEOFBLOCK+100);
+    std::cout<< "after 1 alloc" <<std::endl;
+    print_array();
+
+
+    //void* pt2 = smalloc(MAXSIZEOFBLOCK+100);
 //    std::cout<< "after 2 alloc" <<std::endl;
 //    print_array();
 
     void* pt3 = smalloc(50);
-//    std::cout<< "after 3 alloc" <<std::endl;
-//    print_array();
-
-    void* pt4 = smalloc(40);
-    std::cout<< "after 4 alloc" <<std::endl;
+    std::cout<< "after 3 alloc" <<std::endl;
     print_array();
     std::cout<< _num_allocated_blocks() <<std::endl;
+    //void* pt4 = smalloc(40);
+    //std::cout<< "after 4 alloc" <<std::endl;
+    //print_array();
 
 //    sfree(pt3);
 //    std::cout<< "after 1 delete" <<std::endl;
@@ -547,8 +539,9 @@ int main() {
 //    sfree(pt2);
 //    std::cout<< "after 4 delete" <<std::endl;
 //    print_array();
-
-    std::cout<< _num_allocated_blocks() <<std::endl;
+//
+//    std::cout<< _num_allocated_blocks() <<std::endl;
+//    std::cout<< _size_meta_data() <<std::endl;
 
     return 0;
 }
