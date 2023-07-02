@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <iostream>
+
 #include <cstring>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -40,6 +41,17 @@ bool check_cookie(MallocMetaDatta* checked_block){
         exit(0xdeadbeef);
     }
     return true;
+}
+void print_array(){
+    for(int order=0; order<=ORDERS; order++){
+        std::cout << order << ':' << ' ' ;
+        MallocMetaDatta* tmp = OrdersArray[order];
+        while(tmp){
+            std::cout << tmp->size << ' ' ;
+            tmp = tmp->next;
+        }
+        std::cout << "" <<std::endl;
+    }
 }
 
 MallocMetaDatta* get_MallocMettaData(void* p){
@@ -125,6 +137,8 @@ void init_list(){
     is_list_initialized = true;
 }
 void remove_node (MallocMetaDatta* block, int cur_order){
+    std::cout <<"before delete: " <<std::endl;
+    print_array();
     if(block == OrdersArray[cur_order]){
         if(block->next != nullptr){
             OrdersArray[cur_order] = block->next;
@@ -145,6 +159,8 @@ void remove_node (MallocMetaDatta* block, int cur_order){
     }
     block->prev = nullptr;
     block->next = nullptr;
+    std::cout <<"AFTER delete: " <<std::endl;
+    print_array();
 }
 
 void add_to_ordered_list(MallocMetaDatta* added_block, int order){
@@ -170,19 +186,31 @@ void* split_blocks(MallocMetaDatta* min_block, int cur_order, int wanted_order){
     remove_node(min_block,cur_order);
     MallocMetaDatta* first = min_block;
     first->size = first->size/2;
-    MallocMetaDatta* second = first;
+
+    long second_address = (long)first->address;
+    second_address = ((long) first->address)^((long)first->size);
+    void* second_got_address = (void*) second_address;
+
+    MallocMetaDatta* second = get_MallocMettaData(second_got_address);
     first->order = cur_order-1;
     second->order = cur_order-1;
     first->is_free = false;
     second->is_free = true;
     first->cookie = global_cookie;
     second->cookie = global_cookie;
+    second->size = first->size;
+    second->address = second_got_address;
 
-    long second_address = (long)first->address;
-    second_address = ((long) first->address)^((long)first->size);
-    second->address = (void*)second_address;
+//    long second_address = (long)first->address;
+//    second_address = ((long) first->address)^((long)first->size);
+//    second->address = (void*)second_address;
+
     add_to_ordered_list(first,cur_order-1);
+    std::cout<<"adding first" <<std::endl;
+    print_array();
+    std::cout<<"adding second" <<std::endl;
     add_to_ordered_list(second,cur_order-1);
+    print_array();
 
     return split_blocks(first,cur_order-1,wanted_order);
 }
@@ -250,6 +278,7 @@ void free_mmap_block(MallocMetaDatta* to_free){
     }
     munmap(to_free,sizeof(MallocMetaDatta) + to_free->size);
 }
+
 
 
 
@@ -325,7 +354,7 @@ void* min_address (void* addr1, void* addr2){
 
 void* merge_buddies (MallocMetaDatta* cur_block, int cur_order,int max_order,bool cond_needed){
     if(cur_order == max_order) return cur_block->address;
-    MallocMetaDatta* buddy = find_address_in_array(get_buddy_address(cur_block));
+    MallocMetaDatta* buddy = get_MallocMettaData(get_buddy_address(cur_block));
     if(cond_needed && !buddy->is_free) return cur_block->address;
 
     MallocMetaDatta* union_block = cur_block;
@@ -345,19 +374,19 @@ void sfree(void* p){
     if(p == nullptr){
         return;
     }
-    MallocMetaDatta* is_mmap = find_mmap_block(p);
-    if(is_mmap != nullptr){
+    MallocMetaDatta* is_mmap = get_MallocMettaData(p);
+    if(is_mmap == nullptr) return;
+
+    if(is_mmap->size > MAXSIZEOFBLOCK){
         if(is_mmap->is_free){
             return;
         }
         free_mmap_block(is_mmap);
         return;
     }
-    MallocMetaDatta* wanted_block = find_address_in_array(p);
-    if(wanted_block == nullptr) return;
-    if(wanted_block->is_free == true) return;
-    wanted_block->is_free = true;
-    merge_buddies(wanted_block,wanted_block->order,ORDERS,true);
+    if(is_mmap->is_free == true) return;
+    is_mmap->is_free = true;
+    merge_buddies(is_mmap, is_mmap->order, ORDERS, true);
 }
 
 
@@ -481,6 +510,45 @@ size_t _size_meta_data(){
 }
 
 int main() {
-    void* address = smalloc(40);
+    //std::cout<< _size_meta_data() <<std::endl;
+
+    void* pt1 = smalloc(40);
+//    std::cout<< "after 1 alloc" <<std::endl;
+//    print_array();
+
+    void* pt2 = smalloc(MAXSIZEOFBLOCK+100);
+//    std::cout<< "after 2 alloc" <<std::endl;
+//    print_array();
+
+    void* pt3 = smalloc(50);
+//    std::cout<< "after 3 alloc" <<std::endl;
+//    print_array();
+
+    void* pt4 = smalloc(40);
+    std::cout<< "after 4 alloc" <<std::endl;
+    print_array();
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
+//    sfree(pt3);
+//    std::cout<< "after 1 delete" <<std::endl;
+//    print_array();
+//    std::cout<< _num_allocated_blocks() <<std::endl;
+//
+//    sfree(pt4);
+//    std::cout<< "after 2 delete" <<std::endl;
+//    print_array();
+//    std::cout<< _num_allocated_blocks() <<std::endl;
+//
+//    sfree(pt1);
+//    std::cout<< "after 3 delete" <<std::endl;
+//    print_array();//free again
+//    std::cout<< _num_allocated_blocks() <<std::endl;
+//
+//    sfree(pt2);
+//    std::cout<< "after 4 delete" <<std::endl;
+//    print_array();
+
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
     return 0;
 }
