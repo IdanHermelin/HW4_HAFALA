@@ -137,6 +137,7 @@ void init_list(){
     is_list_initialized = true;
 }
 void remove_node (MallocMetaDatta* block, int cur_order){
+    MallocMetaDatta* array = OrdersArray[cur_order];
     std::cout <<"before delete: " <<std::endl;
     print_array();
     if(block == OrdersArray[cur_order]){
@@ -344,13 +345,17 @@ void* min_address (void* addr1, void* addr2){
 }
 
 void* merge_buddies (MallocMetaDatta* cur_block, int cur_order,int max_order,bool cond_needed){
+    MallocMetaDatta* array = OrdersArray[cur_order];
+    if(cur_order == 6){
+        int y=0;
+    }
     if(cur_order == max_order) return cur_block->address;
     MallocMetaDatta* buddy = get_MallocMettaData(get_buddy_address(cur_block));
     if(cond_needed && !buddy->is_free) return cur_block->address;
 
-    MallocMetaDatta* union_block = cur_block;
+    void* union_block_address = cur_block->address;  //min_address(cur_block->address,buddy->address);
+    MallocMetaDatta* union_block = get_MallocMettaData(union_block_address);
     union_block->size = cur_block->size*2;
-    union_block->address = min_address(cur_block->address,buddy->address);
     union_block->is_free = true;
     union_block->order = cur_order+1;
     union_block->cookie = global_cookie;
@@ -504,44 +509,66 @@ int main() {
     //std::cout<< _size_meta_data() <<std::endl;
     MallocMetaDatta** Array = OrdersArray;
     void* pt1 = smalloc(40);
-
     std::cout<< "after 1 alloc" <<std::endl;
     print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+    std::cout<< _num_allocated_blocks() <<std::endl;
 
 
-    //void* pt2 = smalloc(MAXSIZEOFBLOCK+100);
-//    std::cout<< "after 2 alloc" <<std::endl;
-//    print_array();
+
+    void* pt2 = smalloc(MAXSIZEOFBLOCK+100);
+    std::cout<< "after 2 alloc" <<std::endl;
+    print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+    std::cout<< _num_allocated_blocks() <<std::endl;
 
     void* pt3 = smalloc(50);
     std::cout<< "after 3 alloc" <<std::endl;
     print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
     std::cout<< _num_allocated_blocks() <<std::endl;
-    //void* pt4 = smalloc(40);
-    //std::cout<< "after 4 alloc" <<std::endl;
-    //print_array();
 
-//    sfree(pt3);
-//    std::cout<< "after 1 delete" <<std::endl;
-//    print_array();
-//    std::cout<< _num_allocated_blocks() <<std::endl;
-//
-//    sfree(pt4);
-//    std::cout<< "after 2 delete" <<std::endl;
-//    print_array();
-//    std::cout<< _num_allocated_blocks() <<std::endl;
-//
-//    sfree(pt1);
-//    std::cout<< "after 3 delete" <<std::endl;
-//    print_array();//free again
-//    std::cout<< _num_allocated_blocks() <<std::endl;
-//
-//    sfree(pt2);
-//    std::cout<< "after 4 delete" <<std::endl;
-//    print_array();
-//
-//    std::cout<< _num_allocated_blocks() <<std::endl;
-//    std::cout<< _size_meta_data() <<std::endl;
+    void* pt4 = smalloc(40);
+    std::cout<< "after 4 alloc" <<std::endl;
+    print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
+    sfree(pt1);
+    std::cout<< "after 1 delete" <<std::endl;
+    print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
+    sfree(pt3);
+    std::cout<< "after 2 delete" <<std::endl;
+    print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
+    sfree(pt4);
+    std::cout<< "after 3 delete" <<std::endl;
+    print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
+    sfree(pt1);
+    std::cout<< "after 4 delete" <<std::endl;
+    print_array();//free again
+    std::cout<< "\n\n\n\n" <<std::endl;
+
+    std::cout<< _num_allocated_blocks() <<std::endl;
+
+    sfree(pt2);
+    std::cout<< "after 5 delete" <<std::endl;
+    print_array();
+    std::cout<< "\n\n\n\n" <<std::endl;
+
+    std::cout<< _num_allocated_blocks() <<std::endl;
+    std::cout<< _size_meta_data() <<std::endl;
 
     return 0;
 }
